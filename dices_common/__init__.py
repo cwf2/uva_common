@@ -107,7 +107,7 @@ class Text(object):
     
             res = requests.get(url)
             if not res.ok:
-                log.warning(f"failed to retrieve {url}: {res.status}")
+                log.warning(f"failed to retrieve {url}: {res.status_code} {res.reason}")
                 self.xml = None
                 return
             

@@ -14,7 +14,8 @@ import spacy
 # global values
 #
 
-CTS_PATTERN = "https://scaife.perseus.org/library/{urn}/cts-api-xml/"
+URN_PATTERN = r"urn:cts:greekLit:(tlg\d+)\.(tlg\d+)\.(perseus-grc\d)"
+GITHUB_PATTERN = "https://raw.githubusercontent.com/PerseusDL/canonical-greekLit/master/data/{workgroup}/{work}/{workgroup}.{work}.{edition}.xml"
 NS_MAP = {
     "cts": "http://chs.harvard.edu/xmlns/cts",
     "tei": "http://www.tei-c.org/ns/1.0",
@@ -37,7 +38,7 @@ nlp = spacy.load(SPACY_MODEL)
 # class definitions
 #
 
-class Text(object):
+class PerseusText(object):
     '''represents unit of text; one book of a multi-book epic'''
     
     def __init__(self, urn=None, author=None, title=None, prefix=None, populate=True):
@@ -82,36 +83,47 @@ class Text(object):
             - download XML from Perseus
             - parse XML and build line array, line index
         '''
-        self._dl_scaife_cts(force=force)
-        self._build_line_array(force=force)
+        # self._dl_scaife_cts(force=force)
+        # self._build_line_array(force=force)
     
     
-    def _dl_scaife_cts(self, force=False):
-        '''download from scaife cts endpoint
+    def _dl_github_xml(self, force=False):
+        '''download from PerseusDL canonical-greekLit repo
            - populates xml attribute
         '''
         
         # fail if no urn
         if not self.urn:
-            log.warning(f"can't download cts: {self} has no urn")
+            log.warning(f"can't download xml: {self} has no urn")
             return
         
         # use cached if possible
         if self._xml is not None and not force:
             log.debug("used cached xml: {self}")
 
-        # retrieve xml from scaife
-        else:
-            url = CTS_PATTERN.format(urn=self.urn)
-            log.info(f"retrieving {url}")
-    
-            res = requests.get(url)
-            if not res.ok:
-                log.warning(f"failed to retrieve {url}: {res.status_code} {res.reason}")
-                self.xml = None
-                return
+        # try to parse url
+        print(type(URN_PATTERN), type(self.urn))
+        m = re.match(URN_PATTERN, self.urn)
             
-            self._xml = etree.fromstring(res.content)
+        if m is None:
+            log.warning(f"can't parse urn: {self}")
+            return
+        else:
+            workgroup = m.group(1)
+            work = m.group(2)
+            edition = m.group(3)
+        
+        # try to download
+        url = GITHUB_PATTERN.format(workgroup=workgroup, work=work, edition=edition)
+        log.info(f"retrieving {url}")
+    
+        res = requests.get(url)
+        if not res.ok:
+            log.warning(f"failed to retrieve {url}: {res.status_code} {res.reason}")
+            self.xml = None
+            return
+            
+        self._xml = etree.fromstring(res.content)
     
     
     def _build_line_array(self, force=False):

@@ -28,13 +28,13 @@ tokens = pd.read_csv(token_file, delimiter="\t", dtype=str)
 # remove punctuation
 tokens = tokens.loc[~(tokens["pos"]=="PUNCT")]
 
-# correct elisions
-tokens.loc[tokens["lemma"]=="δʼ", "lemma"] = "δέ"
-tokens.loc[tokens["lemma"]=="τʼ", "lemma"] = "τε"
-tokens.loc[tokens["lemma"]=="ἀλλʼ", "lemma"] = "ἀλλά"
-tokens.loc[tokens["lemma"]=="ἄρʼ", "lemma"] = "ἄρα"
-tokens.loc[tokens["lemma"]=="ἐπʼ", "lemma"] = "ἐπί"
-tokens.loc[tokens["lemma"]=="οὐδʼ", "lemma"] = "οὐδέ"
+# correct elisions and accents
+for corr_file in ["accent_corrections.tsv", "lemma_corrections.tsv"]:
+    with open(os.path.join(TEMP_DIR, corr_file)) as f:
+        for row in f.readlines():
+            if not row.startswith("#"):
+                old, new = row.strip().split("\t")
+                tokens.loc[tokens["lemma"]==old, "lemma"] = new
 
 # force Triphiodorus pref to string
 tokens.loc[tokens["work"]=="Sack of Troy", "pref"] = " "
@@ -320,3 +320,30 @@ def plot_rolling(data, work, pref):
         g.ax.axvspan(group.index.min(), group.index.max(), alpha=0.15, color="gray", linewidth=0)
 
     return g.figure
+
+#
+# text display
+#
+
+def hl(col):
+    return lambda string: f'<span style="font-weight:bold;color:{col}">{string}</span>'
+
+def highlight(feature_set, work, pref, first, last):
+    i_first = tokens['speech_id'].query(f"work=='{work}'&pref=='{pref}'&line=='{first}'").index[0]
+    i_last = tokens['speech_id'].query(f"work=='{work}'&pref=='{pref}'&line=='{last}'").index[-1]
+
+    # work with temp copy of data
+    temp = tokens.loc[i_first:i_last].copy()
+    temp["display"] = temp.loc[temp["token"].isin(feature_set["pos"], "token"].apply(hl("green"))    
+    temp["display"] = temp.loc[temp["token"].isin(feature_set["morph"], "token"].apply(hl("blue"))
+    temp["display"] = temp.loc[temp["token"].isin(feature_set["lemma"], "token"].apply(hl("red"))
+    
+    html = '<table>' + '\n'.join(temp
+        .groupby("line_id", sort=False)
+        .agg(
+            loc = ("line_id", lambda s: '<td>' + s.iloc[0].rsplit(':', 1)[1] + '</td>'),
+            tokens = ("token", lambda s: '<td>' + ' '.join(s) + '<td>'),)
+        .apply(lambda row: f'<tr>{row["loc"]}{row["tokens"]}</tr>', axis=1)
+    ) + '</table>'
+
+    return HTML(html)

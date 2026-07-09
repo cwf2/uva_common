@@ -32,6 +32,8 @@ def download(filenames, node_id, local_dir=None):
     if isinstance(filenames, str):
         filenames = [filenames]
     local_dir = local_dir or CONFIG["data_dir"]
+    
+    os.makedirs(local_dir, exist_ok=True)
 
     for file in _storage(node_id).files:
         if file.name in filenames:

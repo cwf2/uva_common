@@ -6,6 +6,7 @@ import git
 from uva_common.config import CONFIG
 from uva_common.text import Text, parse_urn, get_xml
 from uva_common.osf import download, download_all
+from uva_common.hf_models import latest_wheel_url
 
 
 def clone_repo(language):

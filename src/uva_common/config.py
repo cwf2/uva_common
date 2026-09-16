@@ -54,7 +54,7 @@ CONFIG = {
         },
         "latin": {
             "model_name": "la_core_web_trf",
-            "location": "https://huggingface.co/latincy/la_core_web_trf/resolve/main/la_core_web_trf-3.9.5-py3-none-any.whl",
+            "location": "https://huggingface.co/latincy/la_core_web_trf/resolve/main/la_core_web_trf-3.9.6-py3-none-any.whl",
         },
     },
 }

@@ -19,4 +19,4 @@ See the ["Tokenized Texts" OSF component](https://osf.io/yahps/) to browse the f
 
 ## Build Token Tables.ipynb
 
-Builds the corpus from scratch: sources Greek epic texts (Homer, Apollonius, Quintus, Triphiodorus, Nonnus) from [Perseus](https://github.com/perseusDL/canonical-greekLit), parses them with [OdyCy](https://huggingface.co/chcaa/grc_odycy_joint_trf), and annotates speech/narration using the [DICES](https://dices.mta.ca/) database. Exports one token table per text to `data/tokens/`, which then get uploaded to the OSF archive above. Requires the `nlp` extra (see install instructions).
+Builds the corpus from scratch: sources Greek epic texts (Homer, Apollonius, Quintus, Triphiodorus, Nonnus) from [Perseus](https://github.com/perseusDL/canonical-greekLit), parses them with [grc_dep_web_trf](https://huggingface.co/latincy/grc_dep_web_trf), and annotates speech/narration using the [DICES](https://dices.mta.ca/) database. Exports one token table per text to `data/tokens/`, which then get uploaded to the OSF archive above. Requires the `nlp` extra (see install instructions).

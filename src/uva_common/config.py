@@ -49,8 +49,8 @@ CONFIG = {
     # spaCy models for Greek and Latin
     "spacy_models": {
         "greek": {
-            "model_name": "grc_odycy_joint_trf",
-            "location": "https://huggingface.co/chcaa/grc_odycy_joint_trf/resolve/main/grc_odycy_joint_trf-0.7.0-py3-none-any.whl",
+            "model_name": "grc_dep_web_trf",
+            "location": "https://huggingface.co/latincy/grc_dep_web_trf/resolve/main/grc_dep_web_trf-3.8.4-py3-none-any.whl",
         },
         "latin": {
             "model_name": "la_core_web_trf",

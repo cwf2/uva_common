@@ -15,7 +15,7 @@ import uva_common
 uva_common.download_all("tokens")  # -> data/tokens/*.csv
 ```
 
-See the ["Tokenized Texts" OSF component](https://osf.io/yahps/) to browse the files directly.
+See the ["Tokenized Texts" OSF component](https://osf.io/yahps/) to browse the files directly, or open [`Load Tokens.ipynb`](https://colab.research.google.com/github/cwf2/uva_common/blob/main/Load%20Tokens.ipynb) in Colab for a minimal runnable example.
 
 ## Build Token Tables.ipynb
 

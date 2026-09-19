@@ -46,9 +46,19 @@ def line_array_to_token_table(lines, nlp_pipeline):
     tokens = []
     for token in doc:
         i = bisect.bisect_right(line_offsets, token.idx) - 1
+        # token.i is a per-Doc (i.e. per-book) sequential index, so it's
+        # only unique once qualified by book -- reuse line_id's own book
+        # prefix rather than re-deriving the padding convention separately.
+        # A dependency's head is always in the same Doc as the token itself
+        # (parses never cross book boundaries), so this is enough to link
+        # tok_id/head_id across the whole book regardless of line breaks.
+        book_prefix = lines[i]["line_id"].split("_")[0]
         tokens.append(dict(
             urn=lines[i]["urn"],
             line_id=lines[i]["line_id"],
+            tok_id=f"{book_prefix}_{token.i:05d}",
+            head_id=f"{book_prefix}_{token.head.i:05d}",
+            dep=token.dep_,
             text=token.text,
             lemma=token.lemma_,
             pos=token.pos_,

@@ -43,6 +43,13 @@ One row per token, as archived — **including punctuation** (see `load_tokens` 
 | `text` | Surface form |
 | `lemma` | Dictionary form, after manual accent/elision corrections |
 
+Provenance — same value on every row of a given file, same pattern as `author`/`title`/`work`:
+
+| Column | Meaning |
+|---|---|
+| `model` | The spaCy model that produced this table, as `{package}=={version}` (e.g. `grc_dep_web_trf==3.8.4`) — read from the loaded model's own metadata, not just requested from `CONFIG`, so it reflects what actually ran |
+| `uva_common_commit` | Commit hash of the `uva_common` checkout that produced this table (from `uva_common.repo_commit()`), with a `+dirty` suffix if the working tree had uncommitted changes at parse time. `None`/empty if it couldn't be determined (e.g. a non-editable `pip install` from a git URL discards `.git` when it builds the wheel) |
+
 Morphology and dependency parse, from spaCy's [`grc_dep_web_trf`](https://huggingface.co/latincy/grc_dep_web_trf)/[`la_core_web_trf`](https://huggingface.co/latincy/la_core_web_trf) (Universal Dependencies tagset — empty where a feature doesn't apply to that POS):
 
 | Column | Meaning |

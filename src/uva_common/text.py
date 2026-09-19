@@ -22,6 +22,27 @@ def parse_urn(urn):
     )
 
 
+def repo_commit():
+    '''uva_common's own current git commit hash, or None if it can't be
+    determined (e.g. installed from a wheel with no .git directory --
+    a plain `pip install` from a git+URL, as opposed to a real checkout
+    or an editable install, discards .git when the wheel is built).
+
+    A "+dirty" suffix means the working tree had uncommitted changes at
+    the moment this was called, so the commit hash alone doesn't fully
+    pin the code that produced the result.
+    '''
+    try:
+        import git
+        repo = git.Repo(os.path.dirname(__file__), search_parent_directories=True)
+        commit = repo.head.commit.hexsha
+        if repo.is_dirty(untracked_files=True):
+            commit += "+dirty"
+        return commit
+    except Exception:
+        return None
+
+
 def get_xml(urn):
     '''Load TEI XML for a CTS URN from the local Perseus mirror.'''
     rec = parse_urn(urn)
@@ -173,6 +194,13 @@ class Text:
         result = pd.concat(all_tokens, ignore_index=True)
         result.insert(0, "author", self.author)
         result.insert(1, "title", self.title)
+        # provenance: the model's own self-reported identity (not just
+        # CONFIG's request for it -- this is what actually ran), and the
+        # uva_common commit whose code produced this table. Same value
+        # on every row, same pattern as author/title.
+        model_name = f"{nlp_pipeline.meta.get('lang', '?')}_{nlp_pipeline.meta.get('name', '?')}"
+        result.insert(2, "model", f"{model_name}=={nlp_pipeline.meta.get('version', '?')}")
+        result.insert(3, "uva_common_commit", repo_commit())
         return result
 
     def __repr__(self):

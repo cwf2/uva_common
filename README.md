@@ -74,6 +74,26 @@ Speech annotation, from the [DICES](https://dices.mta.ca/) database — empty/NA
 
 **Dtype note**: `pandas.read_csv` upcasts integer columns with NA values (`cluster`, `turn`) to `float64`, and numeric-infers `person` (which is a categorical code — 1/2/3 — not a quantity) the same way. `load_tokens` applies the fix (`dtype={"cluster": pd.Int64Dtype(), "turn": pd.Int64Dtype(), "person": pd.StringDtype()}`) automatically; only worth doing by hand if you're reading a CSV some other way.
 
+## Building a token table for one text
+
+```python
+import uva_common
+
+# parse, tidy, label DICES speeches, and write data/tokens/tlg4081.tlg001.perseus-grc2.csv
+df = uva_common.build_tokens(
+    "urn:cts:greekLit:tlg4081.tlg001.perseus-grc2",
+    name="Rape of Helen",
+    out_dir="data/tokens",
+)
+```
+
+`build_tokens(urn, name=None, out_dir=None, annotate_speech=True, corrections=None, speeches=None, nlp_pipeline=None)` does for one text what the notebooks below do for a whole canon, and returns the table (writing the CSV too if `out_dir` is given). It needs the `nlp` extra, plus the text in your local Perseus mirror (`uva_common.clone_repo("greek")` or `"latin"`).
+
+- **Texts not in DICES** (or when you don't want speech labels): pass `annotate_speech=False`. The speech columns are then simply absent. A text that *is* requested with annotation but isn't in DICES fails immediately, before the slow parse.
+- **Corrections**: the lemma/accent correction files in `data/` are Greek-only, so by default they're applied to Greek texts and skipped for Latin; override with `corrections=True/False`.
+- **Many texts at once**: by default each call asks DICES for that text's speeches. When building several, fetch them once (`DicesAPI().getSpeeches()`) and pass the list as `speeches=`; only the ones belonging to each text are used.
+- Like the archived tables, the result keeps punctuation rows; use `load_tokens` to filter them at read time.
+
 ## Build Token Tables.ipynb
 
 Builds the corpus from scratch: sources Greek epic texts (Homer, Apollonius, Quintus, Triphiodorus, Nonnus) from [Perseus](https://github.com/perseusDL/canonical-greekLit), parses them with [grc_dep_web_trf](https://huggingface.co/latincy/grc_dep_web_trf), and annotates speech/narration using the [DICES](https://dices.mta.ca/) database. Exports one token table per text to `data/tokens/`, which then get uploaded to the OSF archive above. Requires the `nlp` extra (see install instructions).

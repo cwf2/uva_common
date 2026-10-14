@@ -45,8 +45,11 @@ def load_tokens(paths, filter_punct=True):
         else:
             files.append(p)
 
+    # only the empty string means "missing": pandas' default NA strings would
+    # silently turn the real Latin lemma "null" (nulli, of nullus) into NaN
     df = pd.concat(
-        (pd.read_csv(f, dtype=_DTYPE_FIXES) for f in files),
+        (pd.read_csv(f, dtype=_DTYPE_FIXES, keep_default_na=False, na_values=[""])
+         for f in files),
         ignore_index=True,
     )
 

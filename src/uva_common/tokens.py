@@ -51,18 +51,24 @@ def load_tokens(paths, filter_punct=True, include_bracketed=False):
         else:
             files.append(p)
 
-    # only the empty string means "missing": pandas' default NA strings would
-    # silently turn the real Latin lemma "null" (nulli, of nullus) into NaN
-    df = pd.concat(
-        (pd.read_csv(f, dtype=_DTYPE_FIXES, keep_default_na=False, na_values=[""])
-         for f in files),
-        ignore_index=True,
-    )
+    # Each file is read and filtered on its own: tok_id is only unique within
+    # a text (every text has a 01_00000), so dropping and reparenting across
+    # concatenated texts would mistake one text's tokens for another's.
+    frames = []
+    for f in files:
+        # only the empty string means "missing": pandas' default NA strings
+        # would silently turn the real Latin lemma "null" (nulli, of nullus)
+        # into NaN
+        df = pd.read_csv(f, dtype=_DTYPE_FIXES, keep_default_na=False, na_values=[""])
+        if "bracketed" in df.columns:
+            df["bracketed"] = df["bracketed"].fillna(False).astype(bool)
+        frames.append(_drop_rows(df, punct=filter_punct, bracketed=not include_bracketed))
 
+    df = pd.concat(frames, ignore_index=True)
     if "bracketed" in df.columns:
+        # tables built before the column existed contribute NaN
         df["bracketed"] = df["bracketed"].fillna(False).astype(bool)
-
-    return _drop_rows(df, punct=filter_punct, bracketed=not include_bracketed)
+    return df
 
 
 def is_punct_text(text):

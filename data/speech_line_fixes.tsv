@@ -1,0 +1,7 @@
+# Where a Perseus edition's line numbering is offset from DICES's.
+# An endpoint of a matching speech whose line number is in [from_line, to_line]
+# of the given book is moved by offset (then clamped to a line the edition has).
+# speech_id "*" applies to every speech in the work. Tab-separated.
+work_urn	book	from_line	to_line	offset	speech_id	reason
+urn:cts:latinLit:phi1020.phi001.perseus-lat2	4	697	850	-7	*	Perseus book 4 is 7 lines behind DICES from about 4.697 on (speech boundaries match its quotation marks at -7; the book ends at 4.842)
+urn:cts:latinLit:phi0959.phi006.perseus-lat2	1	546	546	1	D8CD	Daphne's prayer: the edition numbers its second line 1.547 (546 is a variant line in the apparatus), so the speech ends at 547

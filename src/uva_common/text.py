@@ -57,13 +57,42 @@ def get_xml(urn):
     return etree.parse(path)
 
 
+# elements that, directly beside a <del>, mark it as having been replaced
+_REPLACEMENT_TAGS = {"add", "corr", "reg", "choice"}
+
+
+def _local(el):
+    '''Local tag name of an element, or None for comments/processing instructions.'''
+    return etree.QName(el).localname if isinstance(el.tag, str) else None
+
+
+def _adjacent_replacement(del_):
+    '''True if a <del> is immediately followed or preceded by replacement
+    markup (<add>, <corr>, <reg>, <choice>) with no text in between.
+    Merely sharing a parent isn't enough: in prose, unrelated <add>s and
+    <del>s share a paragraph.'''
+    nxt, prv = del_.getnext(), del_.getprevious()
+    if nxt is not None and _local(nxt) in _REPLACEMENT_TAGS and not (del_.tail or "").strip():
+        return True
+    if prv is not None and _local(prv) in _REPLACEMENT_TAGS and not (prv.tail or "").strip():
+        return True
+    return False
+
+
 def _clean_xml(xml):
-    '''Remove editorial notes and deleted lines from a TEI element in place.'''
+    '''Tidy a TEI element in place: remove editorial notes (apparatus), and
+    the content of any <del> that has been replaced by adjacent markup.
+
+    Other <del> content -- text the editor brackets or deletes without a
+    stated replacement -- is deliberately kept; _parse_lines records where
+    it is so the tokens can be flagged as bracketed.
+    '''
     nsmap = CONFIG["nsmap"]
     for note in xml.findall(".//tei:note", namespaces=nsmap):
         note.clear(keep_tail=True)
     for del_ in xml.findall(".//tei:del", namespaces=nsmap):
-        del_.clear(keep_tail=True)
+        if _adjacent_replacement(del_):
+            del_.clear(keep_tail=True)
 
 
 def _get_books(xml, edition_urn):
@@ -108,12 +137,69 @@ def _make_line_id(prefix, line_num):
     return f"{pref_padded}_{digits.zfill(4)}{letter or ''}"
 
 
+def _text_with_spans(el):
+    '''Whitespace-normalized text of an element, plus the character spans of
+    it that fall inside <del> elements.
+
+    Returns (text, spans) where spans is a list of (start, end) offsets into
+    text. Text outside the element (its own tail) is not included.
+    '''
+    chars = []  # (character, inside_del)
+
+    def walk(e, in_del):
+        if e.text:
+            chars.extend((c, in_del) for c in e.text)
+        for child in e:
+            if isinstance(child.tag, str):
+                walk(child, in_del or _local(child) == "del")
+            if child.tail:
+                chars.extend((c, in_del) for c in child.tail)
+
+    walk(el, False)
+
+    out, flags, prev_space = [], [], True
+    for c, flagged in chars:
+        if c.isspace():
+            if prev_space:
+                continue
+            out.append(" ")
+            flags.append(flagged)
+            prev_space = True
+        else:
+            out.append(c)
+            flags.append(flagged)
+            prev_space = False
+    if out and out[-1] == " ":
+        out.pop()
+        flags.pop()
+
+    spans, start = [], None
+    for k, flagged in enumerate(flags):
+        if flagged and start is None:
+            start = k
+        elif not flagged and start is not None:
+            spans.append((start, k))
+            start = None
+    if start is not None:
+        spans.append((start, len(flags)))
+
+    return "".join(out), spans
+
+
 def _parse_lines(edition_urn, prefix, xml, cumsum_start=0):
     '''Extract verse lines from a TEI element into a list of dicts.
 
     cumsum_start allows the caller to continue a running character offset
     across multiple book elements. The cumsum values are consumed by
     line_array_to_token_table() to map spaCy token positions back to lines.
+
+    Lines with no text (e.g. a <gap/> marking a lacuna) are skipped: an
+    empty line would put two spaces in a row into the joined string, and
+    some spaCy models (la_core_web_trf) collapse runs of whitespace, which
+    would throw every later token in the book off its line.
+
+    Each line dict also carries "deleted_spans": the (start, end) character
+    offsets within its text that sit inside <del> elements.
     '''
     nsmap = CONFIG["nsmap"]
     lines = []
@@ -124,8 +210,9 @@ def _parse_lines(edition_urn, prefix, xml, cumsum_start=0):
         if line_num is None:
             continue
 
-        line_text = "".join(s for s in l.itertext())
-        line_text = re.sub(r"\s+", " ", line_text).strip()
+        line_text, deleted_spans = _text_with_spans(l)
+        if not line_text:
+            continue
 
         locus = f"{prefix}.{line_num}" if prefix else line_num
         lines.append(dict(
@@ -134,6 +221,7 @@ def _parse_lines(edition_urn, prefix, xml, cumsum_start=0):
             seq=len(lines),
             text=line_text,
             cumsum=cumsum,
+            deleted_spans=deleted_spans,
         ))
         # +1 accounts for the space in " ".join() used before parsing
         cumsum += len(line_text) + 1

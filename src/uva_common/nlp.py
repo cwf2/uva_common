@@ -36,16 +36,29 @@ def line_array_to_token_table(lines, nlp_pipeline):
 
     Lines are joined into one string before parsing so the model has full
     cross-line context. Tokens are mapped back to their source line via the
-    cumsum offsets stored in each line dict.
+    cumsum offsets stored in each line dict, and flagged "bracketed" if they
+    start inside one of the line's deleted_spans (text the edition brackets
+    or deletes but which is kept, so the parser sees it in context).
     '''
     one_long_string = " ".join(l["text"] for l in lines)
     doc = nlp_pipeline(one_long_string)
+
+    # token.idx is only a valid index into the joined string if the model
+    # leaves its text alone; a length mismatch means offsets (and so the
+    # token -> line mapping) would silently drift
+    if len(doc.text) != len(one_long_string):
+        raise ValueError(
+            f"{nlp_pipeline.meta.get('name')} changed the text length "
+            f"({len(one_long_string)} -> {len(doc.text)}); cannot map tokens to lines"
+        )
 
     line_offsets = [l["cumsum"] for l in lines]
 
     tokens = []
     for token in doc:
         i = bisect.bisect_right(line_offsets, token.idx) - 1
+        rel = token.idx - line_offsets[i]
+        bracketed = any(a <= rel < b for a, b in lines[i].get("deleted_spans", ()))
         # token.i is a per-Doc (i.e. per-book) sequential index, so it's
         # only unique once qualified by book -- reuse line_id's own book
         # prefix rather than re-deriving the padding convention separately.
@@ -70,6 +83,7 @@ def line_array_to_token_table(lines, nlp_pipeline):
             number=";".join(token.morph.get("Number")),
             case=";".join(token.morph.get("Case")),
             gender=";".join(token.morph.get("Gender")),
+            bracketed=bracketed,
         ))
 
     return pd.DataFrame(tokens)

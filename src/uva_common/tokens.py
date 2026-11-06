@@ -24,16 +24,22 @@ _DTYPE_FIXES = {
 }
 
 
-def load_tokens(paths, filter_punct=True):
+def load_tokens(paths, filter_punct=True, include_bracketed=False):
     '''Read one or more token-table CSVs into a single DataFrame.
 
-    paths        — a single path, a list of paths, or a directory (all
-                    *.csv files directly inside it are read)
-    filter_punct — if True (the default), drop PUNCT rows and reparent any
-                    surviving token's head_id that pointed at a removed
-                    one, so head_id always resolves to a row present in
-                    the result. Pass False for the archived table exactly
-                    as saved.
+    paths             — a single path, a list of paths, or a directory (all
+                         *.csv files directly inside it are read)
+    filter_punct      — if True (the default), drop PUNCT rows
+    include_bracketed — if False (the default), also drop tokens the edition
+                         brackets or deletes (the "bracketed" column; tables
+                         built before that column existed have none)
+
+    Whatever is dropped, any surviving token's head_id that pointed at a
+    removed one is reparented to its nearest surviving ancestor, so head_id
+    always resolves to a row present in the result (a token whose whole
+    ancestry was removed becomes a root, with head_id == tok_id). Pass
+    filter_punct=False, include_bracketed=True for the archived table
+    exactly as saved.
     '''
     if isinstance(paths, (str, os.PathLike)):
         paths = [paths]
@@ -53,10 +59,10 @@ def load_tokens(paths, filter_punct=True):
         ignore_index=True,
     )
 
-    if filter_punct:
-        df = _filter_punct(df)
+    if "bracketed" in df.columns:
+        df["bracketed"] = df["bracketed"].fillna(False).astype(bool)
 
-    return df
+    return _drop_rows(df, punct=filter_punct, bracketed=not include_bracketed)
 
 
 def is_punct_text(text):
@@ -75,31 +81,48 @@ def is_punct_text(text):
     )
 
 
-def _filter_punct(df):
-    '''Drop punctuation rows (by surface text, see is_punct_text), reparenting
-    their dependents to the nearest surviving ancestor so every remaining
-    head_id resolves to a row still present in the result. The ROOT row
-    (head_id == tok_id) is never dropped, even if it's punctuation, so the
-    walk always terminates.
+def _drop_rows(df, punct, bracketed):
+    '''Drop punctuation rows (by surface text, see is_punct_text) and/or
+    bracketed rows, reparenting dependents of removed tokens to the nearest
+    surviving ancestor (see load_tokens).
+
+    A punctuation ROOT row (head_id == tok_id) is never dropped, so the
+    walk up the tree always terminates there; a bracketed root can be, and
+    its surviving dependents are promoted to roots.
 
     Tables from before tok_id/head_id existed are filtered with a plain
     drop, since there's nothing to reparent.
     '''
-    if "tok_id" not in df.columns or "head_id" not in df.columns:
-        return df.loc[~df["text"].apply(is_punct_text)].reset_index(drop=True)
+    drop = pd.Series(False, index=df.index)
+    has_tree = "tok_id" in df.columns and "head_id" in df.columns
+    if punct:
+        is_punct = df["text"].apply(is_punct_text)
+        if has_tree:
+            is_punct &= df["tok_id"] != df["head_id"]
+        drop |= is_punct
+    if bracketed and "bracketed" in df.columns:
+        drop |= df["bracketed"].astype(bool)
 
-    is_root = df["tok_id"] == df["head_id"]
-    drop = df["text"].apply(is_punct_text) & ~is_root
+    if not has_tree:
+        return df.loc[~drop].reset_index(drop=True)
+    if not drop.any():
+        return df.reset_index(drop=True)
+
     dropped = set(df.loc[drop, "tok_id"])
     head_of = dict(zip(df["tok_id"], df["head_id"]))
 
-    def resolve(head_id):
+    def resolve(tok_id, head_id):
         seen = set()
-        while head_id in dropped and head_id not in seen:
+        while head_id in dropped:
+            if head_id in seen:
+                return tok_id
             seen.add(head_id)
-            head_id = head_of[head_id]
+            parent = head_of[head_id]
+            if parent == head_id:  # reached a dropped root
+                return tok_id
+            head_id = parent
         return head_id
 
     kept = df.loc[~drop].copy()
-    kept["head_id"] = kept["head_id"].apply(resolve)
+    kept["head_id"] = [resolve(t, h) for t, h in zip(kept["tok_id"], kept["head_id"])]
     return kept.reset_index(drop=True)

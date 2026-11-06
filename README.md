@@ -18,7 +18,7 @@ tokens = uva_common.load_tokens("data/tokens")  # one DataFrame, punctuation fil
 
 See the ["Tokenized Texts" OSF component](https://osf.io/yahps/) to browse the files directly, or open [`Load Tokens.ipynb`](https://colab.research.google.com/github/cwf2/uva_common/blob/main/Load%20Tokens.ipynb) in Colab for a minimal runnable example.
 
-### `load_tokens(paths, filter_punct=True)`
+### `load_tokens(paths, filter_punct=True, include_bracketed=False)`
 
 Reads one or more token-table CSVs (`paths` can be a single file, a list of files, or a directory) into one DataFrame, with the correct dtypes for `cluster`/`turn`/`person` (see the dtype note below — `load_tokens` applies this fix automatically, so it's only relevant if you read the CSVs some other way).
 
@@ -27,7 +27,9 @@ The archived CSVs are close to the parser's raw output — punctuation tokens ar
 - Punctuation rows are identified by surface text (is the token made up entirely of punctuation/symbol characters?), not by trusting the model's own `pos == "PUNCT"` tag — that tag turns out to be unreliable in both directions across the two models (a handful of ordinary Latin words like *petit*, *morsu*, *currus* get mistagged `PUNCT` by `la_core_web_trf`; some bare commas/apostrophes get mistagged with a real content POS by `grc_dep_web_trf`). Filtering on the text itself means a real word is never silently dropped.
 - Any surviving token whose `head_id` pointed at a removed punctuation row gets reparented to that row's own head (walking up past a run of several punctuation tokens if need be), so `head_id` always resolves to a row present in the result. The `ROOT` row is never dropped, even if it's mistagged `PUNCT`, which guarantees the walk terminates.
 
-Pass `filter_punct=False` to get the table exactly as archived, punctuation and all.
+- Tokens flagged `bracketed` (see the table format below) are dropped the same way, with the same reparenting; a bracketed token that was the root of its sentence is dropped too, and any surviving dependents become roots (`head_id == tok_id`).
+
+Pass `filter_punct=False` and `include_bracketed=True` to get the table exactly as archived.
 
 The corpus is six Greek hexameter epics: Homer's *Iliad* and *Odyssey*, Apollonius' *Argonautica*, Quintus' *Posthomerica*, Triphiodorus' *Sack of Troy*, and Nonnus' *Dionysiaca* — one CSV per text, named `{workgroup}.{work}.{edition}.csv` after its CTS URN (e.g. `tlg0012.tlg001.perseus-grc2.csv` for the Iliad).
 
@@ -42,6 +44,7 @@ One row per token, as archived — **including punctuation** (see `load_tokens` 
 | `line_id` | `{book}_{line}`, zero-padded (e.g. `01_0001`) |
 | `text` | Surface form |
 | `lemma` | Dictionary form, after manual accent/elision corrections |
+| `bracketed` | `True` for tokens in text the edition brackets or deletes (a TEI `<del>`) without giving a replacement — e.g. the Helen episode, *Aeneid* 2.567–588. They are kept in the table and in the parse (so the model sees the sentence whole, and speech annotations that cover those lines still line up) but filtered out of `load_tokens` by default. Tables built before this column existed have none |
 
 Provenance — same value on every row of a given file, same pattern as `author`/`title`/`work`:
 
@@ -92,7 +95,11 @@ df = uva_common.build_tokens(
 - **Texts not in DICES** (or when you don't want speech labels): pass `annotate_speech=False`. The speech columns are then simply absent. A text that *is* requested with annotation but isn't in DICES fails immediately, before the slow parse.
 - **Corrections**: the lemma/accent correction files in `data/` are Greek-only, so by default they're applied to Greek texts and skipped for Latin; override with `corrections=True/False`.
 - **Many texts at once**: by default each call asks DICES for that text's speeches. When building several, fetch them once (`DicesAPI().getSpeeches()`) and pass the list as `speeches=`; only the ones belonging to each text are used.
-- Like the archived tables, the result keeps punctuation rows; use `load_tokens` to filter them at read time.
+- Like the archived tables, the result keeps punctuation rows and bracketed tokens; use `load_tokens` to filter them at read time.
+
+**What text gets parsed.** The Perseus TEI is cleaned before parsing: every `<note>` (the apparatus: variant readings, transposed lines, manuscript notes) is dropped, and so is the content of a `<del>` that an adjacent `<add>`, `<corr>`, `<reg>` or `<choice>` replaces. Any other `<del>` — text the editor brackets or deletes with no stated replacement — is kept, parsed along with everything else, and flagged in the `bracketed` column. Lines left with no text (a `<gap/>` marking a lacuna) are skipped.
+
+**Speech alignment.** DICES line numbers don't always match a Perseus edition's. An endpoint naming a line the edition lacks is clamped inward (a first line forward, a last line back) to the nearest line present; a speech left with no lines is skipped with a warning. Where an edition is systematically offset from DICES, `data/speech_line_fixes.tsv` records the offset and why.
 
 ## Build Token Tables.ipynb
 

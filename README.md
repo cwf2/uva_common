@@ -31,7 +31,7 @@ The archived CSVs are close to the parser's raw output — punctuation tokens ar
 
 Pass `filter_punct=False` and `include_bracketed=True` to get the table exactly as archived.
 
-The corpus is six Greek hexameter epics: Homer's *Iliad* and *Odyssey*, Apollonius' *Argonautica*, Quintus' *Posthomerica*, Triphiodorus' *Sack of Troy*, and Nonnus' *Dionysiaca* — one CSV per text, named `{workgroup}.{work}.{edition}.csv` after its CTS URN (e.g. `tlg0012.tlg001.perseus-grc2.csv` for the Iliad).
+The archive holds one CSV per text, for both Greek and Latin, named `{workgroup}.{work}.{edition}.csv` after its CTS URN (e.g. `tlg0012.tlg001.perseus-grc2.csv` for Homer's *Iliad*). The set of texts grows over time, so browse the OSF component for what is currently there; within a table, `work`, `urn` and `model` identify the text and the model that parsed it, and `uva_common_commit` the code that built it.
 
 ### Token table format
 
@@ -101,6 +101,8 @@ df = uva_common.build_tokens(
 
 **Speech alignment.** DICES line numbers don't always match a Perseus edition's. An endpoint naming a line the edition lacks is clamped inward (a first line forward, a last line back) to the nearest line present; a speech left with no lines is skipped with a warning. Where an edition is systematically offset from DICES, `data/speech_line_fixes.tsv` records the offset and why.
 
-## Build Token Tables.ipynb
+## Build notebooks
 
-Builds the corpus from scratch: sources Greek epic texts (Homer, Apollonius, Quintus, Triphiodorus, Nonnus) from [Perseus](https://github.com/perseusDL/canonical-greekLit), parses them with [grc_dep_web_trf](https://huggingface.co/latincy/grc_dep_web_trf), and annotates speech/narration using the [DICES](https://dices.mta.ca/) database. Exports one token table per text to `data/tokens/`, which then get uploaded to the OSF archive above. Requires the `nlp` extra (see install instructions).
+[`Build Token Tables.ipynb`](Build%20Token%20Tables.ipynb) (Greek) and [`Build Latin Token Tables.ipynb`](Build%20Latin%20Token%20Tables.ipynb) build token tables from scratch for the lists of texts they contain: they source the texts from [Perseus](https://github.com/perseusDL), parse them with [grc_dep_web_trf](https://huggingface.co/latincy/grc_dep_web_trf) or [la_core_web_trf](https://huggingface.co/latincy/la_core_web_trf), annotate speech/narration using the [DICES](https://dices.mta.ca/) database, and write one table per text to `data/tokens/`, ready to upload to the OSF archive above. Requires the `nlp` extra (see install instructions). The lists in the notebooks are just the texts those notebooks build; the archive may hold more, since `build_tokens` (above) builds any single text.
+
+Run Greek and Latin in separate processes (one notebook per kernel, as here): the two models register a spaCy component under the same name, so parsing Latin after Greek in one Python process fails.
